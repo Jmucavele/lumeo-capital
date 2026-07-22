@@ -30,15 +30,40 @@ const tipoTone: Record<string, string> = {
 export function Extrato() {
   const [filtro, setFiltro] = React.useState('todos');
   const [clienteId, setClienteId] = React.useState('todos');
+  const [emprestimoId, setEmprestimoId] = React.useState('todos');
   const { data, isLoading } = useExtrato();
   const { data: clientes } = useClientes();
+
+  // Lista de empréstimos disponível para o dropdown — derivada do próprio
+  // extrato (sem pedido extra ao servidor), já filtrada pelo cliente
+  // escolhido (se houver um seleccionado).
+  const emprestimosDisponiveis = React.useMemo(() => {
+    const vistos = new Map<string, { id: string; codigo: string; clienteId: string }>();
+    for (const m of data ?? []) {
+      if (clienteId !== 'todos' && m.cliente_id !== clienteId) continue;
+      if (!vistos.has(m.emprestimo_id)) {
+        vistos.set(m.emprestimo_id, { id: m.emprestimo_id, codigo: m.codigo_emprestimo, clienteId: m.cliente_id });
+      }
+    }
+    return Array.from(vistos.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }, [data, clienteId]);
+
+  // Se o cliente mudar e o empréstimo seleccionado já não pertencer a ele, limpa o filtro de empréstimo.
+  React.useEffect(() => {
+    if (emprestimoId !== 'todos' && !emprestimosDisponiveis.some((e) => e.id === emprestimoId)) {
+      setEmprestimoId('todos');
+    }
+  }, [emprestimosDisponiveis, emprestimoId]);
 
   const filtrado = React.useMemo(
     () =>
       (data ?? []).filter(
-        (m) => (filtro === 'todos' || m.tipo === filtro) && (clienteId === 'todos' || m.cliente_id === clienteId)
+        (m) =>
+          (filtro === 'todos' || m.tipo === filtro) &&
+          (clienteId === 'todos' || m.cliente_id === clienteId) &&
+          (emprestimoId === 'todos' || m.emprestimo_id === emprestimoId)
       ),
-    [data, filtro, clienteId]
+    [data, filtro, clienteId, emprestimoId]
   );
 
   return (
@@ -66,12 +91,27 @@ export function Extrato() {
             </button>
           ))}
         </div>
-        <Select className="w-auto" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-          <option value="todos">Todos os clientes</option>
-          {clientes?.map((c) => (
-            <option key={c.id} value={c.id}>{c.codigo} — {c.nome_completo}</option>
-          ))}
-        </Select>
+        <div className="flex gap-2 flex-wrap">
+          <Select
+            className="w-auto"
+            value={clienteId}
+            onChange={(e) => {
+              setClienteId(e.target.value);
+              setEmprestimoId('todos'); // trocar de cliente reinicia o filtro de empréstimo
+            }}
+          >
+            <option value="todos">Todos os clientes</option>
+            {clientes?.map((c) => (
+              <option key={c.id} value={c.id}>{c.codigo} — {c.nome_completo}</option>
+            ))}
+          </Select>
+          <Select className="w-auto" value={emprestimoId} onChange={(e) => setEmprestimoId(e.target.value)}>
+            <option value="todos">Todos os empréstimos</option>
+            {emprestimosDisponiveis.map((e) => (
+              <option key={e.id} value={e.id}>{e.codigo}</option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       <div className="rounded-xl2 border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-900 overflow-hidden">
