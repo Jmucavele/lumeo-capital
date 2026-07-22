@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database.types';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -12,7 +11,14 @@ if (!url || !anonKey) {
   );
 }
 
-export const supabase = createClient<Database>(url, anonKey, {
+// Nota: sem o genérico <Database> propositadamente. O nosso tipo Database
+// (escrito à mão em src/types/database.types.ts) não corresponde 100% à
+// forma interna que o supabase-js espera (faltam Relationships,
+// CompositeTypes, etc.), o que causava erros de compilação em cascata em
+// .insert()/.eq()/.rpc() por toda a app. Cada hook já tipa explicitamente
+// o que devolve (useQuery<T>, 'as T'), por isso mantemos a segurança de
+// tipos onde importa, só perdemos autocomplete nos nomes de tabelas/colunas.
+export const supabase = createClient(url, anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

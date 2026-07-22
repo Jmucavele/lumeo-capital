@@ -9,10 +9,9 @@ import {
   useCreateCliente,
   useUpdateCliente,
   type ClienteInput,
-  type ViewClientesResumo,
 } from '@/hooks/useClientes';
 import { formatMT } from '@/lib/utils';
-import type { Cliente } from '@/types/database.types';
+import type { Cliente, ViewClientesResumo } from '@/types/database.types';
 
 const emptyForm: ClienteInput = {
   nome_completo: '',
