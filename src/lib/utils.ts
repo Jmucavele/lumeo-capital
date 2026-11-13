@@ -16,10 +16,15 @@ export function formatMT(value: number | null | undefined): string {
   return mtFormatter.format(value);
 }
 
-export function formatPercent(value: number | null | undefined): string {
+export function formatPercent(value: number | null | undefined, casas = 2): string {
   if (value === null || value === undefined) return '—';
-  return `${(value * 100).toFixed(2)}%`;
+  return `${(value * 100).toFixed(casas)}%`;
 }
+
+export const tipoJuroLabel: Record<string, string> = {
+  mensal: 'Mensal composto',
+  diario: 'Diário composto',
+};
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';

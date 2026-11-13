@@ -14,7 +14,7 @@ export interface NovoPagamentoInput {
  * aconteceu — pode ser retroactiva. O motor de juros recalcula todo o
  * extrato do empréstimo a partir daí (ver recompute_emprestimo no SQL). */
 function invalidarTudo(qc: ReturnType<typeof useQueryClient>) {
-  for (const k of ['emprestimos', 'emprestimo', 'extrato', 'clientes', 'dashboard-resumo', 'cobrancas', 'pagamentos-historico']) {
+  for (const k of ['emprestimos', 'emprestimo', 'extrato', 'clientes', 'dashboard-resumo', 'cobrancas', 'pagamentos-historico', 'posicao']) {
     qc.invalidateQueries({ queryKey: [k] });
   }
 }

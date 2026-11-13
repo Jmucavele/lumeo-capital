@@ -3,7 +3,8 @@ import { Plus, Pencil, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Textarea, EmptyState, Spinner } from '@/components/ui/primitives';
 import { Dialog } from '@/components/ui/dialog';
-import { useEmprestimos } from '@/hooks/useEmprestimos';
+import { useEmprestimos, usePosicaoEmprestimo } from '@/hooks/useEmprestimos';
+import { tipoJuroLabel } from '@/lib/utils';
 import { mensagemErro, useExtrato, useHistoricoPagamentos, useRegistrarPagamento } from '@/hooks/usePagamentos';
 import { EditarPagamentoDialog } from '@/components/pagamentos/EditarPagamentoDialog';
 import type { ViewExtrato } from '@/types/database.types';
@@ -36,14 +37,18 @@ export function Pagamentos() {
     [extrato]
   );
   const emprestimoSel = emprestimos?.find((e) => e.id === emprestimoId);
+  // Quanto o cliente deve na data escolhida, segundo a regra do empréstimo
+  const { data: posicoes } = usePosicaoEmprestimo(emprestimoId || undefined, dataPagamento);
+  const devidoNaData = posicoes?.find((p) => p.regime === (emprestimoSel?.tipo_juro ?? 'mensal'))?.saldo;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!emprestimoId || !valor || !dataPagamento) return;
     const v = parseFloat(valor);
     if (Number.isNaN(v) || v <= 0) return setErro('O valor tem de ser maior que zero.');
-    if (emprestimoSel && v > emprestimoSel.saldo_atual + 0.01 &&
-        !window.confirm(`O valor (${formatMT(v)}) é maior que o saldo em dívida (${formatMT(emprestimoSel.saldo_atual)}). Registar mesmo assim?`)) return;
+    const limite = devidoNaData ?? emprestimoSel?.saldo_atual;
+    if (limite !== undefined && v > limite + 0.01 &&
+        !window.confirm(`O valor (${formatMT(v)}) é maior que a dívida nessa data (${formatMT(limite)}). Registar mesmo assim?`)) return;
     setErro(null);
     try {
       await registrar.mutateAsync({ emprestimo_id: emprestimoId, valor: v, data_pagamento: dataPagamento, observacoes: observacoes || undefined });
@@ -174,6 +179,17 @@ export function Pagamentos() {
               <Input required type="date" max={hoje()} value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} />
             </div>
           </div>
+          {emprestimoSel && devidoNaData !== undefined && (
+            <div className="rounded-lg bg-brass-500/10 border border-brass-500/30 px-3 py-2 text-sm flex items-center justify-between gap-2">
+              <span>
+                Dívida em {formatDate(dataPagamento)}: <strong>{formatMT(devidoNaData)}</strong>
+                <span className="block text-xs text-ink-500">{tipoJuroLabel[emprestimoSel.tipo_juro ?? 'mensal']}</span>
+              </span>
+              <button type="button" className="text-xs text-brass-600 hover:underline" onClick={() => setValor(devidoNaData.toFixed(2))}>
+                usar este valor
+              </button>
+            </div>
+          )}
           <div>
             <Label>Observações</Label>
             <Textarea rows={2} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />

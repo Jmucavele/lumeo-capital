@@ -3,6 +3,7 @@
 //   npx supabase gen types typescript --project-id SEU_ID > src/types/database.types.ts
 
 export type EstadoCliente = 'ativo' | 'inativo' | 'bloqueado';
+export type TipoJuro = 'mensal' | 'diario';
 export type EstadoEmprestimo = 'ativo' | 'atraso' | 'liquidado';
 export type TipoMovimento = 'desembolso' | 'capitalizacao' | 'pagamento' | 'ajuste';
 
@@ -29,6 +30,7 @@ export interface Emprestimo {
   cliente_id: string;
   capital: number;
   taxa_juro: number;
+  tipo_juro: TipoJuro;
   data_desembolso: string;
   dia_aniversario: number;
   data_proxima_capitalizacao: string;
@@ -48,7 +50,6 @@ export interface Movimento {
   saldo_apos: number;
   data_movimento: string;
   codigo_pagamento: string | null;
-  pagamento_id: string | null;
   comprovativo_url: string | null;
   observacoes: string | null;
   created_at: string;
@@ -96,6 +97,15 @@ export interface ViewExtrato {
   pagamento_id: string | null;
   comprovativo_url: string | null;
   observacoes: string | null;
+}
+
+export interface PosicaoEmprestimo {
+  regime: TipoJuro;
+  data_referencia: string;
+  saldo: number;
+  juro_acumulado: number;
+  dias_desde_ultimo_evento: number;
+  total_pago: number;
 }
 
 export interface PagamentoHistorico {

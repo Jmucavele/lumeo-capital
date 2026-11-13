@@ -4,9 +4,11 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Textarea, Badge, EmptyState, Spinner } from '@/components/ui/primitives';
 import { Dialog } from '@/components/ui/dialog';
-import { useEmprestimos, useCriarEmprestimo, type NovoDesembolsoInput } from '@/hooks/useEmprestimos';
+import { useEmprestimos, useCriarEmprestimo, taxaDiaria, type NovoDesembolsoInput } from '@/hooks/useEmprestimos';
+import { mensagemErro } from '@/hooks/usePagamentos';
+import type { TipoJuro } from '@/types/database.types';
 import { useClientes } from '@/hooks/useClientes';
-import { formatDate, formatMT, formatPercent } from '@/lib/utils';
+import { formatDate, formatMT, formatPercent, tipoJuroLabel } from '@/lib/utils';
 
 const estados = [
   { value: 'todos', label: 'Todos' },
@@ -15,12 +17,13 @@ const estados = [
   { value: 'liquidado', label: 'Liquidados' },
 ];
 
-const emptyForm = { cliente_id: '', capital: '', taxa_juro: '', data_desembolso: new Date().toISOString().slice(0, 10), observacoes: '' };
+const emptyForm = { cliente_id: '', capital: '', taxa_juro: '', data_desembolso: new Date().toISOString().slice(0, 10), observacoes: '', tipo_juro: 'mensal' as TipoJuro };
 
 export function Emprestimos() {
   const [filtro, setFiltro] = React.useState('todos');
   const [open, setOpen] = React.useState(false);
   const [form, setForm] = React.useState(emptyForm);
+  const [erro, setErro] = React.useState<string | null>(null);
   const { data, isLoading } = useEmprestimos(filtro);
   const { data: clientes } = useClientes();
   const criar = useCriarEmprestimo();
@@ -30,7 +33,15 @@ export function Emprestimos() {
     const capital = parseFloat(form.capital);
     const taxa = parseFloat(form.taxa_juro);
     if (!capital || !taxa) return null;
-    return { juro: capital * (taxa / 100), saldoInicial: capital * (1 + taxa / 100) };
+    const d = taxaDiaria(taxa / 100);
+    return {
+      juro: capital * (taxa / 100),
+      saldoInicial: capital * (1 + taxa / 100),
+      taxaDia: d,
+      dia10: capital * Math.pow(1 + d, 10),
+      dia15: capital * Math.pow(1 + d, 15),
+      dia30: capital * Math.pow(1 + d, 30),
+    };
   }, [form.capital, form.taxa_juro]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,8 +53,16 @@ export function Emprestimos() {
       taxa_juro: parseFloat(form.taxa_juro) / 100,
       data_desembolso: form.data_desembolso,
       observacoes: form.observacoes || undefined,
+      tipo_juro: form.tipo_juro,
     };
-    const id = await criar.mutateAsync(input);
+    setErro(null);
+    let id: string;
+    try {
+      id = await criar.mutateAsync(input);
+    } catch (err) {
+      setErro(mensagemErro(err));
+      return;
+    }
     setForm(emptyForm);
     setOpen(false);
     navigate(`/emprestimos/${id}`);
@@ -55,7 +74,7 @@ export function Emprestimos() {
         <div>
           <h1 className="text-2xl font-display font-bold">Empréstimos</h1>
           <p className="text-sm text-ink-500 dark:text-parchment-200/60 mt-1">
-            Juros capitalizados imediatamente no desembolso e depois a cada data de aniversário.
+            Juro mensal composto (capitalizado no desembolso e a cada aniversário) ou diário composto (base 30 dias).
           </p>
         </div>
         <Button onClick={() => setOpen(true)}>
@@ -108,7 +127,10 @@ export function Emprestimos() {
                   <td className="px-5 py-3 font-mono text-xs text-ink-500">{e.codigo}</td>
                   <td className="px-5 py-3 font-medium">{e.clientes?.nome_completo ?? '—'}</td>
                   <td className="px-5 py-3 tabular">{formatMT(e.capital)}</td>
-                  <td className="px-5 py-3 tabular">{formatPercent(e.taxa_juro)}</td>
+                  <td className="px-5 py-3 tabular">
+                    {formatPercent(e.taxa_juro)}
+                    <span className="block text-[11px] text-ink-400">{tipoJuroLabel[e.tipo_juro ?? 'mensal']}</span>
+                  </td>
                   <td className="px-5 py-3">{formatDate(e.data_desembolso)}</td>
                   <td className="px-5 py-3">{formatDate(e.data_proxima_capitalizacao)}</td>
                   <td className="px-5 py-3 tabular font-semibold text-brass-600 dark:text-brass-400">{formatMT(e.saldo_atual)}</td>
@@ -124,7 +146,7 @@ export function Emprestimos() {
         open={open}
         onClose={() => setOpen(false)}
         title="Novo Empréstimo"
-        description="Os juros do 1º ciclo são adicionados ao capital imediatamente — sem carência."
+        description="Escolhe como o juro é calculado: mensal (ciclo inteiro logo no desembolso) ou diário composto."
       >
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -147,6 +169,28 @@ export function Emprestimos() {
             </div>
           </div>
           <div>
+            <Label>Tipo de Juro *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['mensal', 'diario'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm({ ...form, tipo_juro: t })}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    form.tipo_juro === t
+                      ? 'border-brass-500 bg-brass-500/10'
+                      : 'border-ink-200 dark:border-ink-700 hover:bg-ink-50 dark:hover:bg-ink-800'
+                  }`}
+                >
+                  <span className="font-medium block">{tipoJuroLabel[t]}</span>
+                  <span className="text-xs text-ink-500">
+                    {t === 'mensal' ? 'Juro do mês inteiro logo no desembolso' : 'Juro corre dia a dia; paga menos se pagar cedo'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <Label>Data do Desembolso *</Label>
             <Input required type="date" value={form.data_desembolso} onChange={(e) => setForm({ ...form, data_desembolso: e.target.value })} />
           </div>
@@ -155,12 +199,26 @@ export function Emprestimos() {
             <Textarea rows={2} value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
           </div>
 
-          {previaJuro && (
+          {previaJuro && form.tipo_juro === 'mensal' && (
             <div className="rounded-lg bg-brass-500/10 border border-brass-500/30 px-3 py-2 text-sm">
               Juro do 1º ciclo: <strong>{formatMT(previaJuro.juro)}</strong> · Saldo inicial da dívida:{' '}
               <strong className="text-brass-600 dark:text-brass-400">{formatMT(previaJuro.saldoInicial)}</strong>
             </div>
           )}
+          {previaJuro && form.tipo_juro === 'diario' && (
+            <div className="rounded-lg bg-brass-500/10 border border-brass-500/30 px-3 py-2 text-sm space-y-1">
+              <p>
+                Taxa diária equivalente: <strong>{formatPercent(previaJuro.taxaDia, 4)}</strong> ao dia (base 30 dias)
+              </p>
+              <p className="text-xs text-ink-600 dark:text-parchment-200/70">
+                Se não pagar nada, deve: dia 10 → <strong>{formatMT(previaJuro.dia10)}</strong> · dia 15 →{' '}
+                <strong>{formatMT(previaJuro.dia15)}</strong> · dia 30 →{' '}
+                <strong className="text-brass-600 dark:text-brass-400">{formatMT(previaJuro.dia30)}</strong>
+              </p>
+            </div>
+          )}
+
+          {erro && <p className="text-sm text-rust-500">{erro}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

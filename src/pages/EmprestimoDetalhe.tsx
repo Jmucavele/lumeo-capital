@@ -7,8 +7,10 @@ import { Dialog } from '@/components/ui/dialog';
 import { useEmprestimo } from '@/hooks/useEmprestimos';
 import { mensagemErro, useExtrato, useRegistrarPagamento } from '@/hooks/usePagamentos';
 import { EditarPagamentoDialog } from '@/components/pagamentos/EditarPagamentoDialog';
+import { PosicaoCard } from '@/components/emprestimos/PosicaoCard';
+import { useAlterarTipoJuro } from '@/hooks/useEmprestimos';
 import type { ViewExtrato } from '@/types/database.types';
-import { formatDate, formatMT, formatPercent } from '@/lib/utils';
+import { formatDate, formatMT, formatPercent, tipoJuroLabel } from '@/lib/utils';
 
 const tipoLabel: Record<string, string> = {
   desembolso: 'Desembolso',
@@ -41,6 +43,22 @@ export function EmprestimoDetalhe() {
   const [observacoes, setObservacoes] = React.useState('');
   const [erro, setErro] = React.useState<string | null>(null);
   const [aEditar, setAEditar] = React.useState<ViewExtrato | null>(null);
+  const alterarTipo = useAlterarTipoJuro();
+
+  async function trocarTipoJuro() {
+    if (!emprestimo) return;
+    const novo = emprestimo.tipo_juro === 'diario' ? 'mensal' : 'diario';
+    const ok = window.confirm(
+      `Mudar ${emprestimo.codigo} para juro ${tipoJuroLabel[novo].toLowerCase()}?\n\n` +
+        'Todo o extrato e o saldo deste empréstimo serão recalculados desde o desembolso com a nova regra.'
+    );
+    if (!ok) return;
+    try {
+      await alterarTipo.mutateAsync({ emprestimo_id: emprestimo.id, tipo_juro: novo });
+    } catch (err) {
+      window.alert(mensagemErro(err));
+    }
+  }
 
   async function handlePagamento(e: React.FormEvent) {
     e.preventDefault();
@@ -79,7 +97,17 @@ export function EmprestimoDetalhe() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div><p className="text-ink-400 text-xs">Capital</p><p className="mt-0.5 tabular">{formatMT(emprestimo.capital)}</p></div>
-          <div><p className="text-ink-400 text-xs">Taxa de Juro Mensal</p><p className="mt-0.5">{formatPercent(emprestimo.taxa_juro)}</p></div>
+          <div>
+            <p className="text-ink-400 text-xs">Taxa de Juro</p>
+            <p className="mt-0.5">
+              {formatPercent(emprestimo.taxa_juro)} ao mês · {tipoJuroLabel[emprestimo.tipo_juro ?? 'mensal']}
+            </p>
+            {emprestimo.tipo_juro && (
+              <button onClick={trocarTipoJuro} disabled={alterarTipo.isPending} className="text-xs text-brass-600 hover:underline mt-0.5">
+                {alterarTipo.isPending ? 'A recalcular…' : `mudar para ${emprestimo.tipo_juro === 'diario' ? 'mensal' : 'diário'}`}
+              </button>
+            )}
+          </div>
           <div><p className="text-ink-400 text-xs">Data de Desembolso</p><p className="mt-0.5">{formatDate(emprestimo.data_desembolso)}</p></div>
           <div><p className="text-ink-400 text-xs">Próxima Capitalização</p><p className="mt-0.5">{formatDate(emprestimo.data_proxima_capitalizacao)}</p></div>
           <div className="col-span-2 md:col-span-1">
@@ -89,6 +117,17 @@ export function EmprestimoDetalhe() {
           <div><p className="text-ink-400 text-xs">Último Pagamento</p><p className="mt-0.5">{formatDate(emprestimo.data_ultimo_pagamento)}</p></div>
         </CardContent>
       </Card>
+
+      <PosicaoCard
+        emprestimo={emprestimo}
+        onLiquidar={(v, d) => {
+          setValor(v.toFixed(2));
+          setDataPagamento(d);
+          setObservacoes('Liquidação total');
+          setErro(null);
+          setOpen(true);
+        }}
+      />
 
       {emprestimo.estado !== 'liquidado' && (
         <Button onClick={() => setOpen(true)}>
