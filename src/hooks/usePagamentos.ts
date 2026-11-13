@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import type { ViewCobrancas, ViewExtrato } from '@/types/database.types';
+import type { PagamentoHistorico, ViewCobrancas, ViewExtrato } from '@/types/database.types';
 
 export interface NovoPagamentoInput {
   emprestimo_id: string;
@@ -13,6 +13,77 @@ export interface NovoPagamentoInput {
 /** Regista um pagamento (parcial ou total), com a data real em que
  * aconteceu — pode ser retroactiva. O motor de juros recalcula todo o
  * extrato do empréstimo a partir daí (ver recompute_emprestimo no SQL). */
+function invalidarTudo(qc: ReturnType<typeof useQueryClient>) {
+  for (const k of ['emprestimos', 'emprestimo', 'extrato', 'clientes', 'dashboard-resumo', 'cobrancas', 'pagamentos-historico']) {
+    qc.invalidateQueries({ queryKey: [k] });
+  }
+}
+
+/** Mensagem legível a partir de um erro do Supabase/Postgres. */
+export function mensagemErro(err: unknown): string {
+  if (err && typeof err === 'object' && 'message' in err) return String((err as { message: string }).message);
+  return 'Ocorreu um erro inesperado. Tenta novamente.';
+}
+
+export interface EditarPagamentoInput {
+  pagamento_id: string;
+  valor: number;
+  data_pagamento: string;
+  observacoes?: string | null;
+  motivo: string;
+}
+
+/** Edita um pagamento já registado. O motor recalcula todo o extrato e o
+ * antes/depois fica gravado em pagamentos_historico. */
+export function useEditarPagamento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: EditarPagamentoInput) => {
+      const { error } = await supabase.rpc('editar_pagamento', {
+        p_pagamento_id: input.pagamento_id,
+        p_valor: input.valor,
+        p_data_pagamento: input.data_pagamento,
+        p_observacoes: input.observacoes ?? null,
+        p_motivo: input.motivo,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidarTudo(qc),
+  });
+}
+
+/** Anula (remove) um pagamento lançado por engano, guardando-o no histórico. */
+export function useAnularPagamento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { pagamento_id: string; motivo: string }) => {
+      const { error } = await supabase.rpc('anular_pagamento', {
+        p_pagamento_id: input.pagamento_id,
+        p_motivo: input.motivo,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidarTudo(qc),
+  });
+}
+
+export function useHistoricoPagamentos() {
+  return useQuery<PagamentoHistorico[]>({
+    queryKey: ['pagamentos-historico'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pagamentos_historico')
+        .select('*')
+        .order('alterado_em', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data as PagamentoHistorico[];
+    },
+  });
+}
+
+const ordemTipo: Record<string, number> = { desembolso: 0, pagamento: 1, capitalizacao: 2, ajuste: 3 };
+
 export function useRegistrarPagamento() {
   const qc = useQueryClient();
   return useMutation({
@@ -27,14 +98,7 @@ export function useRegistrarPagamento() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['emprestimos'] });
-      qc.invalidateQueries({ queryKey: ['emprestimo'] });
-      qc.invalidateQueries({ queryKey: ['extrato'] });
-      qc.invalidateQueries({ queryKey: ['clientes'] });
-      qc.invalidateQueries({ queryKey: ['dashboard-resumo'] });
-      qc.invalidateQueries({ queryKey: ['cobrancas'] });
-    },
+    onSuccess: () => invalidarTudo(qc),
   });
 }
 
@@ -42,11 +106,28 @@ export function useExtrato(emprestimoId?: string) {
   return useQuery<ViewExtrato[]>({
     queryKey: ['extrato', emprestimoId ?? 'todos'],
     queryFn: async () => {
-      let query = supabase.from('view_extrato').select('*').order('data_movimento', { ascending: true });
-      if (emprestimoId) query = query.eq('emprestimo_id', emprestimoId);
-      const { data, error } = await query.limit(500);
-      if (error) throw error;
-      return data as ViewExtrato[];
+      const novaQuery = () => {
+        let q = supabase.from('view_extrato').select('*').order('data_movimento', { ascending: true }).order('movimento_id');
+        if (emprestimoId) q = q.eq('emprestimo_id', emprestimoId);
+        return q;
+      };
+      // Sem limite fixo de 500: busca em páginas para não "perder" movimentos
+      // quando a carteira crescer.
+      const todos: ViewExtrato[] = [];
+      const passo = 1000;
+      for (let de = 0; ; de += passo) {
+        const { data, error } = await novaQuery().range(de, de + passo - 1);
+        if (error) throw error;
+        todos.push(...(data as ViewExtrato[]));
+        if (!data || data.length < passo) break;
+      }
+      // Mesmo dia: desembolso primeiro, depois pagamento, depois capitalização
+      // (é a ordem em que o motor de juros os aplica).
+      return todos.sort(
+        (a, b) =>
+          a.data_movimento.localeCompare(b.data_movimento) ||
+          (ordemTipo[a.tipo] ?? 9) - (ordemTipo[b.tipo] ?? 9)
+      );
     },
   });
 }

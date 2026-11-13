@@ -4,7 +4,7 @@ import { useDashboard } from '@/hooks/useDashboard';
 import { formatMT } from '@/lib/utils';
 
 const kpis = [
-  { key: 'capital_total_emprestado', label: 'Capital Emprestado', icon: Landmark, tone: 'text-ink-700 dark:text-parchment-100' },
+  { key: 'capital_ativo', label: 'Capital Desembolsado (activos)', icon: Landmark, tone: 'text-ink-700 dark:text-parchment-100' },
   { key: 'saldo_total_em_divida', label: 'Saldo em Dívida', icon: Wallet, tone: 'text-brass-600 dark:text-brass-400' },
   { key: 'juros_gerados_total', label: 'Juros Gerados', icon: TrendingUp, tone: 'text-moss-600 dark:text-moss-400' },
   { key: 'total_recebido', label: 'Total Recebido', icon: Coins, tone: 'text-moss-600 dark:text-moss-400' },
@@ -51,7 +51,10 @@ export function Dashboard() {
                   <Icon className={`h-4 w-4 ${tone}`} />
                 </CardHeader>
                 <CardContent>
-                  <p className={`text-2xl font-display font-bold tabular ${tone}`}>{formatMT(data[key])}</p>
+                  <p className={`text-2xl font-display font-bold tabular ${tone}`}>{formatMT(data[key] ?? (key === 'capital_ativo' ? data.capital_total_emprestado : 0))}</p>
+                  {key === 'capital_ativo' && data.capital_ativo !== undefined && (
+                    <p className="text-xs text-ink-400 mt-1">Histórico total: {formatMT(data.capital_total_emprestado)}</p>
+                  )}
                 </CardContent>
               </Card>
             ))}

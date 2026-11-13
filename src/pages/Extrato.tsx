@@ -31,22 +31,53 @@ export function Extrato() {
   const [filtro, setFiltro] = React.useState('todos');
   const [clienteId, setClienteId] = React.useState('todos');
   const [emprestimoId, setEmprestimoId] = React.useState('todos');
+  // Por omissão só mostra empréstimos com saldo em dívida (activos/em atraso).
+  const [mostrarLiquidados, setMostrarLiquidados] = React.useState(false);
   const { data, isLoading } = useExtrato();
   const { data: clientes } = useClientes();
+
+  const comSaldo = (m: { estado_emprestimo?: string; saldo_atual_emprestimo?: number }) =>
+    m.estado_emprestimo
+      ? m.estado_emprestimo !== 'liquidado' && (m.saldo_atual_emprestimo ?? 0) > 0.005
+      : true; // se a migração v3 ainda não correu, não esconde nada
+
+  // Movimentos visíveis segundo o interruptor "liquidados"
+  const base = React.useMemo(
+    () => (data ?? []).filter((m) => mostrarLiquidados || comSaldo(m)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, mostrarLiquidados]
+  );
+
+  // Dropdown de clientes: só quem tem movimentos visíveis (i.e. com dívida)
+  const clientesDisponiveis = React.useMemo(() => {
+    const ids = new Set(base.map((m) => m.cliente_id));
+    return (clientes ?? []).filter((c) => ids.has(c.id));
+  }, [base, clientes]);
+
+  const totalLiquidados = React.useMemo(
+    () => new Set((data ?? []).filter((m) => !comSaldo(m)).map((m) => m.emprestimo_id)).size,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data]
+  );
+
+  // Se o cliente escolhido deixou de estar na lista, volta a "todos"
+  React.useEffect(() => {
+    if (clienteId !== 'todos' && clientes && !clientesDisponiveis.some((c) => c.id === clienteId)) setClienteId('todos');
+  }, [clientesDisponiveis, clienteId, clientes]);
 
   // Lista de empréstimos disponível para o dropdown — derivada do próprio
   // extrato (sem pedido extra ao servidor), já filtrada pelo cliente
   // escolhido (se houver um seleccionado).
   const emprestimosDisponiveis = React.useMemo(() => {
     const vistos = new Map<string, { id: string; codigo: string; clienteId: string }>();
-    for (const m of data ?? []) {
+    for (const m of base) {
       if (clienteId !== 'todos' && m.cliente_id !== clienteId) continue;
       if (!vistos.has(m.emprestimo_id)) {
         vistos.set(m.emprestimo_id, { id: m.emprestimo_id, codigo: m.codigo_emprestimo, clienteId: m.cliente_id });
       }
     }
     return Array.from(vistos.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
-  }, [data, clienteId]);
+  }, [base, clienteId]);
 
   // Se o cliente mudar e o empréstimo seleccionado já não pertencer a ele, limpa o filtro de empréstimo.
   React.useEffect(() => {
@@ -57,13 +88,13 @@ export function Extrato() {
 
   const filtrado = React.useMemo(
     () =>
-      (data ?? []).filter(
+      base.filter(
         (m) =>
           (filtro === 'todos' || m.tipo === filtro) &&
           (clienteId === 'todos' || m.cliente_id === clienteId) &&
           (emprestimoId === 'todos' || m.emprestimo_id === emprestimoId)
       ),
-    [data, filtro, clienteId, emprestimoId]
+    [base, filtro, clienteId, emprestimoId]
   );
 
   return (
@@ -71,7 +102,9 @@ export function Extrato() {
       <div>
         <h1 className="text-2xl font-display font-bold">Extrato Geral</h1>
         <p className="text-sm text-ink-500 dark:text-parchment-200/60 mt-1">
-          Todos os movimentos da carteira, em ordem cronológica — a história real de cada empréstimo.
+          {mostrarLiquidados
+            ? 'Todos os movimentos da carteira, incluindo empréstimos já liquidados.'
+            : 'Movimentos dos empréstimos com saldo em dívida, em ordem cronológica.'}
         </p>
       </div>
 
@@ -101,10 +134,19 @@ export function Extrato() {
             }}
           >
             <option value="todos">Todos os clientes</option>
-            {clientes?.map((c) => (
+            {clientesDisponiveis.map((c) => (
               <option key={c.id} value={c.id}>{c.codigo} — {c.nome_completo}</option>
             ))}
           </Select>
+          <label className="flex items-center gap-2 text-sm text-ink-500 dark:text-parchment-200/70 px-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={mostrarLiquidados}
+              onChange={(e) => setMostrarLiquidados(e.target.checked)}
+              className="accent-brass-500 h-4 w-4"
+            />
+            Mostrar liquidados{totalLiquidados ? ` (${totalLiquidados})` : ''}
+          </label>
           <Select className="w-auto" value={emprestimoId} onChange={(e) => setEmprestimoId(e.target.value)}>
             <option value="todos">Todos os empréstimos</option>
             {emprestimosDisponiveis.map((e) => (
@@ -118,7 +160,10 @@ export function Extrato() {
         {isLoading ? (
           <div className="flex justify-center py-14"><Spinner /></div>
         ) : filtrado.length === 0 ? (
-          <EmptyState title="Nenhum movimento neste filtro" />
+          <EmptyState
+            title="Nenhum movimento neste filtro"
+            description={!mostrarLiquidados && totalLiquidados ? 'Os empréstimos liquidados estão escondidos — activa "Mostrar liquidados".' : undefined}
+          />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -135,7 +180,12 @@ export function Extrato() {
               {filtrado.map((m) => (
                 <tr key={m.movimento_id} className="border-b border-ink-50 dark:border-ink-800 last:border-0">
                   <td className="px-5 py-3 whitespace-nowrap">{formatDate(m.data_movimento)}</td>
-                  <td className="px-5 py-3 font-medium">{m.nome_completo}</td>
+                  <td className="px-5 py-3 font-medium">
+                    {m.nome_completo}
+                    {m.estado_emprestimo === 'liquidado' && (
+                      <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] uppercase bg-moss-600/15 text-moss-600">liquidado</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <Link to={`/emprestimos/${m.emprestimo_id}`} className="font-mono text-xs text-brass-600 hover:underline">
                       {m.codigo_emprestimo}

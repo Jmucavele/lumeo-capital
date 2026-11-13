@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, Badge, Label, Textarea, Input
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { useEmprestimo } from '@/hooks/useEmprestimos';
-import { useExtrato, useRegistrarPagamento } from '@/hooks/usePagamentos';
+import { mensagemErro, useExtrato, useRegistrarPagamento } from '@/hooks/usePagamentos';
+import { EditarPagamentoDialog } from '@/components/pagamentos/EditarPagamentoDialog';
+import type { ViewExtrato } from '@/types/database.types';
 import { formatDate, formatMT, formatPercent } from '@/lib/utils';
 
 const tipoLabel: Record<string, string> = {
@@ -37,11 +39,18 @@ export function EmprestimoDetalhe() {
   const [valor, setValor] = React.useState('');
   const [dataPagamento, setDataPagamento] = React.useState(hoje());
   const [observacoes, setObservacoes] = React.useState('');
+  const [erro, setErro] = React.useState<string | null>(null);
+  const [aEditar, setAEditar] = React.useState<ViewExtrato | null>(null);
 
   async function handlePagamento(e: React.FormEvent) {
     e.preventDefault();
     if (!id || !valor || !dataPagamento) return;
-    await registrarPagamento.mutateAsync({ emprestimo_id: id, valor: parseFloat(valor), data_pagamento: dataPagamento, observacoes: observacoes || undefined });
+    setErro(null);
+    try {
+      await registrarPagamento.mutateAsync({ emprestimo_id: id, valor: parseFloat(valor), data_pagamento: dataPagamento, observacoes: observacoes || undefined });
+    } catch (err) {
+      return setErro(mensagemErro(err));
+    }
     setValor('');
     setDataPagamento(hoje());
     setObservacoes('');
@@ -109,6 +118,9 @@ export function EmprestimoDetalhe() {
                     <td className="px-5 py-3 whitespace-nowrap">{formatDate(m.data_movimento)}</td>
                     <td className={`px-5 py-3 font-medium ${tipoTone[m.tipo]}`}>
                       {tipoLabel[m.tipo]}{m.codigo_pagamento ? ` · ${m.codigo_pagamento}` : ''}
+                      {m.tipo === 'pagamento' && (
+                        <button onClick={() => setAEditar(m)} className="ml-2 text-xs text-brass-600 hover:underline">editar</button>
+                      )}
                     </td>
                     <td className="px-5 py-3 tabular">{formatMT(m.valor)}</td>
                     <td className="px-5 py-3 tabular font-semibold">{formatMT(m.saldo_apos)}</td>
@@ -138,6 +150,7 @@ export function EmprestimoDetalhe() {
             <Textarea rows={2} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Nº de comprovativo, forma de pagamento, etc." />
           </div>
           <p className="text-xs text-ink-400">Saldo atual: {formatMT(emprestimo.saldo_atual)}</p>
+          {erro && <p className="text-sm text-rust-500">{erro}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button type="submit" disabled={registrarPagamento.isPending}>
@@ -146,6 +159,7 @@ export function EmprestimoDetalhe() {
           </div>
         </form>
       </Dialog>
+      <EditarPagamentoDialog pagamento={aEditar} onClose={() => setAEditar(null)} />
     </div>
   );
 }

@@ -48,6 +48,7 @@ export interface Movimento {
   saldo_apos: number;
   data_movimento: string;
   codigo_pagamento: string | null;
+  pagamento_id: string | null;
   comprovativo_url: string | null;
   observacoes: string | null;
   created_at: string;
@@ -72,6 +73,7 @@ export interface ViewDashboardResumo {
   emprestimos_ativos: number;
   emprestimos_em_atraso: number;
   emprestimos_liquidados: number;
+  capital_ativo: number;
   capital_total_emprestado: number;
   saldo_total_em_divida: number;
   juros_gerados_total: number;
@@ -82,6 +84,8 @@ export interface ViewExtrato {
   movimento_id: string;
   emprestimo_id: string;
   codigo_emprestimo: string;
+  estado_emprestimo: EstadoEmprestimo;
+  saldo_atual_emprestimo: number;
   cliente_id: string;
   nome_completo: string;
   tipo: TipoMovimento;
@@ -89,8 +93,25 @@ export interface ViewExtrato {
   saldo_apos: number;
   data_movimento: string;
   codigo_pagamento: string | null;
+  pagamento_id: string | null;
   comprovativo_url: string | null;
   observacoes: string | null;
+}
+
+export interface PagamentoHistorico {
+  id: string;
+  pagamento_id: string;
+  codigo_pagamento: string | null;
+  emprestimo_id: string;
+  acao: 'edicao' | 'anulacao';
+  valor_anterior: number | null;
+  data_anterior: string | null;
+  observacoes_anterior: string | null;
+  valor_novo: number | null;
+  data_nova: string | null;
+  observacoes_nova: string | null;
+  motivo: string;
+  alterado_em: string;
 }
 
 export interface ViewCobrancas {
