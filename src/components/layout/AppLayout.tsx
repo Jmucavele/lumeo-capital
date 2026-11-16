@@ -7,6 +7,7 @@ import {
   ScrollText,
   AlertTriangle,
   Coins,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
@@ -18,6 +19,7 @@ const nav = [
   { to: '/pagamentos', label: 'Pagamentos', icon: Receipt },
   { to: '/extrato', label: 'Extrato', icon: ScrollText },
   { to: '/cobrancas', label: 'Cobranças', icon: AlertTriangle },
+  { to: '/reporte-bdm', label: 'Reporte BdM', icon: Landmark },
 ];
 
 export function AppLayout() {

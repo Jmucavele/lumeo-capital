@@ -8,6 +8,7 @@ import { EmprestimoDetalhe } from '@/pages/EmprestimoDetalhe';
 import { Pagamentos } from '@/pages/Pagamentos';
 import { Extrato } from '@/pages/Extrato';
 import { Cobrancas } from '@/pages/Cobrancas';
+import { ReporteBdm } from '@/pages/ReporteBdm';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/pagamentos" element={<Pagamentos />} />
         <Route path="/extrato" element={<Extrato />} />
         <Route path="/cobrancas" element={<Cobrancas />} />
+        <Route path="/reporte-bdm" element={<ReporteBdm />} />
       </Route>
     </Routes>
   );
