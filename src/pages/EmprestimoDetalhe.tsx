@@ -7,6 +7,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { useEmprestimo } from '@/hooks/useEmprestimos';
 import { mensagemErro, useExtrato, useRegistrarPagamento } from '@/hooks/usePagamentos';
 import { EditarPagamentoDialog } from '@/components/pagamentos/EditarPagamentoDialog';
+import { ExportarExtrato, BotaoRecibo } from '@/components/documentos/ExportarExtrato';
 import { PosicaoCard } from '@/components/emprestimos/PosicaoCard';
 import { useAlterarTipoJuro } from '@/hooks/useEmprestimos';
 import type { ViewExtrato } from '@/types/database.types';
@@ -136,7 +137,17 @@ export function EmprestimoDetalhe() {
       )}
 
       <div>
-        <h2 className="text-lg font-display font-semibold mb-3">Extrato do Empréstimo</h2>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-lg font-display font-semibold">Extrato do Empréstimo</h2>
+          {emprestimo && extrato && extrato.length > 0 && (
+            <ExportarExtrato
+              movimentos={extrato}
+              titulo={`Extracto do Empréstimo ${emprestimo.codigo}`}
+              cliente={emprestimo.clientes?.nome_completo}
+              emprestimo={emprestimo}
+            />
+          )}
+        </div>
         {!extrato || extrato.length === 0 ? (
           <Card><EmptyState title="Sem movimentos ainda" /></Card>
         ) : (
@@ -158,7 +169,10 @@ export function EmprestimoDetalhe() {
                     <td className={`px-5 py-3 font-medium ${tipoTone[m.tipo]}`}>
                       {tipoLabel[m.tipo]}{m.codigo_pagamento ? ` · ${m.codigo_pagamento}` : ''}
                       {m.tipo === 'pagamento' && (
-                        <button onClick={() => setAEditar(m)} className="ml-2 text-xs text-brass-600 hover:underline">editar</button>
+                        <>
+                          <button onClick={() => setAEditar(m)} className="ml-2 text-xs text-brass-600 hover:underline">editar</button>
+                          <span className="ml-1"><BotaoRecibo pagamento={m} /></span>
+                        </>
                       )}
                     </td>
                     <td className="px-5 py-3 tabular">{formatMT(m.valor)}</td>

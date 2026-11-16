@@ -7,6 +7,7 @@ import { useEmprestimos, usePosicaoEmprestimo } from '@/hooks/useEmprestimos';
 import { tipoJuroLabel } from '@/lib/utils';
 import { mensagemErro, useExtrato, useHistoricoPagamentos, useRegistrarPagamento } from '@/hooks/usePagamentos';
 import { EditarPagamentoDialog } from '@/components/pagamentos/EditarPagamentoDialog';
+import { BotaoRecibo } from '@/components/documentos/ExportarExtrato';
 import type { ViewExtrato } from '@/types/database.types';
 import { formatDate, formatMT } from '@/lib/utils';
 
@@ -141,7 +142,8 @@ export function Pagamentos() {
                   <td className="px-5 py-3 tabular text-moss-600 dark:text-moss-400 font-semibold">{formatMT(-p.valor)}</td>
                   <td className="px-5 py-3 tabular">{formatMT(p.saldo_apos)}</td>
                   <td className="px-5 py-3 text-ink-500 max-w-[14rem] truncate" title={p.observacoes ?? ''}>{p.observacoes || '—'}</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    <BotaoRecibo pagamento={p} />
                     <button
                       onClick={() => setAEditar(p)}
                       className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-brass-600 hover:bg-ink-100 dark:hover:bg-ink-800"

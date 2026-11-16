@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useExtrato } from '@/hooks/usePagamentos';
 import { useClientes } from '@/hooks/useClientes';
 import { EmptyState, Spinner, Select } from '@/components/ui/primitives';
+import { ExportarExtrato } from '@/components/documentos/ExportarExtrato';
+import { BotaoRecibo } from '@/components/documentos/ExportarExtrato';
 import { formatDate, formatMT } from '@/lib/utils';
 
 const tipos = [
@@ -97,8 +99,13 @@ export function Extrato() {
     [base, filtro, clienteId, emprestimoId]
   );
 
+  const clienteSel = clientesDisponiveis.find((c) => c.id === clienteId);
+  const emprestimoSel = emprestimosDisponiveis.find((e) => e.id === emprestimoId);
+  const tituloExport = emprestimoSel ? `Extracto do Empréstimo ${emprestimoSel.codigo}` : clienteSel ? 'Extracto do Cliente' : 'Extracto Geral';
+
   return (
     <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
       <div>
         <h1 className="text-2xl font-display font-bold">Extrato Geral</h1>
         <p className="text-sm text-ink-500 dark:text-parchment-200/60 mt-1">
@@ -106,6 +113,8 @@ export function Extrato() {
             ? 'Todos os movimentos da carteira, incluindo empréstimos já liquidados.'
             : 'Movimentos dos empréstimos com saldo em dívida, em ordem cronológica.'}
         </p>
+      </div>
+        <ExportarExtrato movimentos={filtrado} titulo={tituloExport} cliente={clienteSel?.nome_completo} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -191,7 +200,10 @@ export function Extrato() {
                       {m.codigo_emprestimo}
                     </Link>
                   </td>
-                  <td className={`px-5 py-3 font-medium ${tipoTone[m.tipo]}`}>{tipoLabel[m.tipo]}</td>
+                  <td className={`px-5 py-3 font-medium ${tipoTone[m.tipo]}`}>
+                    {tipoLabel[m.tipo]}
+                    {m.tipo === 'pagamento' && <span className="ml-1"><BotaoRecibo pagamento={m} /></span>}
+                  </td>
                   <td className="px-5 py-3 tabular">{formatMT(m.valor)}</td>
                   <td className="px-5 py-3 tabular font-semibold">{formatMT(m.saldo_apos)}</td>
                 </tr>
