@@ -1,9 +1,11 @@
 import * as React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Spinner, EmptyState } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
+import { Input, Label } from '@/components/ui/primitives';
 import { useCliente } from '@/hooks/useClientes';
 import { EditarClienteDialog } from '@/pages/Clientes';
 import { supabase } from '@/lib/supabase';
@@ -15,6 +17,22 @@ export function ClienteDetalhe() {
   const navigate = useNavigate();
   const { data: cliente, isLoading } = useCliente(id);
   const [editando, setEditando] = React.useState(false);
+  const [aApagar, setAApagar] = React.useState(false);
+  const [confirmacao, setConfirmacao] = React.useState('');
+  const [erroApagar, setErroApagar] = React.useState<string | null>(null);
+  const [apagando, setApagando] = React.useState(false);
+  const qc = useQueryClient();
+
+  async function apagarCliente() {
+    if (!cliente) return;
+    setApagando(true);
+    setErroApagar(null);
+    const { error } = await supabase.rpc('apagar_cliente', { p_cliente_id: cliente.id, p_confirmacao: confirmacao });
+    setApagando(false);
+    if (error) return setErroApagar(error.message);
+    qc.invalidateQueries();
+    navigate('/clientes');
+  }
 
   const { data: emprestimos } = useQuery<Emprestimo[]>({
     queryKey: ['emprestimos-do-cliente', id],
@@ -50,6 +68,10 @@ export function ClienteDetalhe() {
             <Badge tone={cliente.estado}>{cliente.estado}</Badge>
             <Button variant="outline" size="sm" onClick={() => setEditando(true)}>
               <Pencil className="h-3.5 w-3.5" /> Editar
+            </Button>
+            <Button variant="outline" size="sm" className="text-rust-500 border-rust-500/40 hover:bg-rust-500/10"
+              onClick={() => { setConfirmacao(''); setErroApagar(null); setAApagar(true); }}>
+              <Trash2 className="h-3.5 w-3.5" /> Apagar
             </Button>
           </div>
         </CardHeader>
@@ -96,6 +118,30 @@ export function ClienteDetalhe() {
       </div>
 
       <EditarClienteDialog cliente={editando ? cliente : null} onClose={() => setEditando(false)} />
+      <Dialog open={aApagar} onClose={() => setAApagar(false)} title="Apagar cliente e todo o histórico">
+        <div className="space-y-3 text-sm">
+          <p>
+            Vai apagar <strong>{cliente.nome_completo}</strong> ({cliente.codigo}) e <strong>tudo</strong> o que lhe pertence:
+            {' '}{emprestimos?.length ?? 0} empréstimo(s), desembolsos, pagamentos, extracto e histórico de alterações.
+          </p>
+          <p className="rounded-lg bg-rust-500/10 border border-rust-500/30 px-3 py-2 text-rust-500">
+            Esta acção é irreversível. Os dados deixam também de aparecer nos reportes de períodos passados.
+          </p>
+          <div>
+            <Label>Para confirmar, escreva o código do cliente: <strong>{cliente.codigo}</strong></Label>
+            <Input value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} placeholder={cliente.codigo} />
+          </div>
+          {erroApagar && <p className="text-rust-500">{erroApagar}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setAApagar(false)}>Cancelar</Button>
+            <Button className="bg-rust-500 hover:bg-rust-400 text-white"
+              disabled={apagando || confirmacao.trim().toUpperCase() !== cliente.codigo.toUpperCase()}
+              onClick={apagarCliente}>
+              {apagando ? 'A apagar…' : 'Apagar definitivamente'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
