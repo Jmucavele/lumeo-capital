@@ -32,3 +32,12 @@
     @apply bg-ink-600/40 rounded-full;
   }
 }
+
+/* Telemóvel: tabelas largas deslizam na horizontal em vez de ficarem cortadas */
+@media (max-width: 767px) {
+  main table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}

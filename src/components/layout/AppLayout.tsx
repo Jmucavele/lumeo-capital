@@ -61,16 +61,44 @@ export function AppLayout() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-ink-100 dark:border-ink-700 flex items-center justify-between px-4 md:px-8 bg-white/60 dark:bg-ink-900/60 backdrop-blur-sm sticky top-0 z-10">
-          <p className="font-display font-semibold text-sm md:text-base">Gestão de Microcrédito</p>
+        <header style={{ paddingTop: 'env(safe-area-inset-top)' }} className="min-h-16 h-auto py-3 border-b border-ink-100 dark:border-ink-700 flex items-center justify-between px-4 md:px-8 bg-white/60 dark:bg-ink-900/60 backdrop-blur-sm sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <div className="md:hidden h-7 w-7 rounded-lg bg-brass-500 flex items-center justify-center">
+              <Coins className="h-4 w-4 text-ink-950" />
+            </div>
+            <p className="font-display font-semibold text-sm md:text-base">Gestão de Microcrédito</p>
+          </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-8">
+        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8">
           <Outlet />
         </main>
       </div>
+
+      {/* Menu inferior no telemóvel (estilo app bancária) */}
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-20 flex overflow-x-auto border-t border-ink-100 dark:border-ink-700 bg-white/95 dark:bg-ink-900/95 backdrop-blur"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {nav.map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            className={({ isActive }) =>
+              cn(
+                'flex-1 min-w-[64px] flex flex-col items-center gap-1 px-2 py-2 text-[10px] font-medium',
+                isActive ? 'text-brass-600 dark:text-brass-400' : 'text-ink-500 dark:text-parchment-200/70'
+              )
+            }
+          >
+            <Icon className="h-5 w-5" />
+            <span className="whitespace-nowrap">{label}</span>
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }
