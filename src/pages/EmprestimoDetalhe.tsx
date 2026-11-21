@@ -9,6 +9,7 @@ import { mensagemErro, useExtrato, useRegistrarPagamento } from '@/hooks/usePaga
 import { EditarPagamentoDialog } from '@/components/pagamentos/EditarPagamentoDialog';
 import { ExportarExtrato, BotaoRecibo } from '@/components/documentos/ExportarExtrato';
 import { PosicaoCard } from '@/components/emprestimos/PosicaoCard';
+import { BotaoContrato } from '@/components/contratos/ContratoDialog';
 import { useAlterarTipoJuro } from '@/hooks/useEmprestimos';
 import type { ViewExtrato } from '@/types/database.types';
 import { formatDate, formatMT, formatPercent, tipoJuroLabel } from '@/lib/utils';
@@ -94,7 +95,10 @@ export function EmprestimoDetalhe() {
               {emprestimo.clientes?.nome_completo}
             </Link>
           </div>
-          <Badge tone={emprestimo.estado}>{emprestimo.estado}</Badge>
+          <div className="flex flex-col items-end gap-2">
+            <Badge tone={emprestimo.estado}>{emprestimo.estado}</Badge>
+            <BotaoContrato emprestimo={emprestimo} />
+          </div>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div><p className="text-ink-400 text-xs">Capital</p><p className="mt-0.5 tabular">{formatMT(emprestimo.capital)}</p></div>

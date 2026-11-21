@@ -8,6 +8,8 @@ import {
   AlertTriangle,
   Coins,
   Landmark,
+  Calculator,
+  PiggyBank,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
@@ -15,10 +17,12 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/simulador', label: 'Simulador', icon: Calculator },
   { to: '/emprestimos', label: 'Empréstimos', icon: HandCoins },
   { to: '/pagamentos', label: 'Pagamentos', icon: Receipt },
   { to: '/extrato', label: 'Extrato', icon: ScrollText },
   { to: '/cobrancas', label: 'Cobranças', icon: AlertTriangle },
+  { to: '/financas', label: 'Finanças', icon: PiggyBank },
   { to: '/reporte-bdm', label: 'Reporte BdM', icon: Landmark },
 ];
 

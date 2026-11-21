@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Textarea, Badge, EmptyState, Spinner } from '@/components/ui/primitives';
@@ -9,6 +9,20 @@ import { mensagemErro } from '@/hooks/usePagamentos';
 import type { TipoJuro } from '@/types/database.types';
 import { useClientes } from '@/hooks/useClientes';
 import { formatDate, formatMT, formatPercent, tipoJuroLabel } from '@/lib/utils';
+import { ContratoForm, contratoDoCliente } from '@/components/contratos/ContratoForm';
+import { useGuardarContrato } from '@/hooks/useContratos';
+import { supabase } from '@/lib/supabase';
+import { contratoVazio, gerarContratoPDF, sugerirGarantia, type DadosContrato } from '@/lib/contrato';
+
+/** Dados que o Simulador passa para abrir o "Novo Empréstimo" já preenchido. */
+export interface PrefillEmprestimo {
+  capital: number;
+  taxa: number; // em %
+  tipo_juro: TipoJuro;
+  data_desembolso: string;
+  prazo_dias: number;
+  n_prestacoes: number;
+}
 
 const estados = [
   { value: 'todos', label: 'Todos' },
@@ -17,7 +31,7 @@ const estados = [
   { value: 'liquidado', label: 'Liquidados' },
 ];
 
-const emptyForm = { cliente_id: '', capital: '', taxa_juro: '', data_desembolso: new Date().toISOString().slice(0, 10), observacoes: '', tipo_juro: 'mensal' as TipoJuro };
+const emptyForm = { cliente_id: '', capital: '', taxa_juro: '30', data_desembolso: new Date().toISOString().slice(0, 10), observacoes: '', tipo_juro: 'diario' as TipoJuro };
 
 export function Emprestimos() {
   const [filtro, setFiltro] = React.useState('todos');
@@ -28,6 +42,26 @@ export function Emprestimos() {
   const { data: clientes } = useClientes();
   const criar = useCriarEmprestimo();
   const navigate = useNavigate();
+  const location = useLocation();
+  const guardarContrato = useGuardarContrato();
+  const [emitirContrato, setEmitirContrato] = React.useState(true);
+  const [contrato, setContrato] = React.useState<DadosContrato>(contratoVazio());
+
+  // Vindo do Simulador: abre o formulário já preenchido
+  React.useEffect(() => {
+    const p = (location.state as { prefill?: PrefillEmprestimo } | null)?.prefill;
+    if (!p) return;
+    setForm((f) => ({ ...f, capital: String(p.capital), taxa_juro: String(p.taxa), tipo_juro: p.tipo_juro, data_desembolso: p.data_desembolso }));
+    setContrato((c) => ({ ...c, credito: { ...c.credito, prazo_dias: p.prazo_dias, n_prestacoes: p.n_prestacoes, garantia: sugerirGarantia(p.capital) } }));
+    setOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate]);
+
+  function escolherCliente(id: string) {
+    setForm((f) => ({ ...f, cliente_id: id }));
+    const cli = clientes?.find((c) => c.id === id);
+    setContrato((c) => contratoDoCliente({ ...c, mutuario: { nome: '' }, fiador: {} }, cli));
+  }
 
   const previaJuro = React.useMemo(() => {
     const capital = parseFloat(form.capital);
@@ -63,7 +97,22 @@ export function Emprestimos() {
       setErro(mensagemErro(err));
       return;
     }
+    if (emitirContrato) {
+      try {
+        const { data: novo } = await supabase.from('emprestimos').select('codigo').eq('id', id).single();
+        const c = await guardarContrato.mutateAsync({ emprestimo_id: id, data_contrato: input.data_desembolso, dados: contrato });
+        await gerarContratoPDF({
+          numero: c.numero,
+          dataContrato: c.data_contrato,
+          dados: contrato,
+          emprestimo: { codigo: (novo as { codigo: string } | null)?.codigo ?? '', capital: input.capital, taxa_juro: input.taxa_juro, tipo_juro: input.tipo_juro, data_desembolso: input.data_desembolso },
+        });
+      } catch (err) {
+        window.alert(`O empréstimo foi criado, mas o contrato não foi emitido: ${mensagemErro(err)}\nPode emiti-lo na página do empréstimo.`);
+      }
+    }
     setForm(emptyForm);
+    setContrato(contratoVazio());
     setOpen(false);
     navigate(`/emprestimos/${id}`);
   }
@@ -145,13 +194,14 @@ export function Emprestimos() {
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
+        className="max-w-2xl"
         title="Novo Empréstimo"
         description="Escolhe como o juro é calculado: mensal (ciclo inteiro logo no desembolso) ou diário composto."
       >
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <Label>Cliente *</Label>
-            <Select required value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}>
+            <Select required value={form.cliente_id} onChange={(e) => escolherCliente(e.target.value)}>
               <option value="">Selecionar cliente…</option>
               {clientes?.map((c) => (
                 <option key={c.id} value={c.id}>{c.codigo} — {c.nome_completo}</option>
@@ -216,6 +266,18 @@ export function Emprestimos() {
                 <strong className="text-brass-600 dark:text-brass-400">{formatMT(previaJuro.dia30)}</strong>
               </p>
             </div>
+          )}
+
+          <label className="flex items-center gap-2 text-sm font-medium pt-1">
+            <input type="checkbox" checked={emitirContrato} onChange={(e) => setEmitirContrato(e.target.checked)} className="accent-brass-500 h-4 w-4" />
+            Emitir contrato de mútuo (PDF assinado e carimbado)
+          </label>
+          {emitirContrato && (
+            <ContratoForm
+              value={contrato}
+              onChange={setContrato}
+              capital={parseFloat(form.capital) || undefined}
+            />
           )}
 
           {erro && <p className="text-sm text-rust-500">{erro}</p>}

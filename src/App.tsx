@@ -9,6 +9,8 @@ import { Pagamentos } from '@/pages/Pagamentos';
 import { Extrato } from '@/pages/Extrato';
 import { Cobrancas } from '@/pages/Cobrancas';
 import { ReporteBdm } from '@/pages/ReporteBdm';
+import { Simulador } from '@/pages/Simulador';
+import { Financas } from '@/pages/Financas';
 
 export default function App() {
   return (
@@ -23,6 +25,8 @@ export default function App() {
         <Route path="/extrato" element={<Extrato />} />
         <Route path="/cobrancas" element={<Cobrancas />} />
         <Route path="/reporte-bdm" element={<ReporteBdm />} />
+        <Route path="/simulador" element={<Simulador />} />
+        <Route path="/financas" element={<Financas />} />
       </Route>
     </Routes>
   );
