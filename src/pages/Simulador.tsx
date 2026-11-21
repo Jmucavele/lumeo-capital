@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator, ArrowRight, Printer } from 'lucide-react';
+import { Calculator, ArrowRight, FileDown } from 'lucide-react';
+import { gerarPlanoPDF } from '@/lib/contrato';
 import { Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { calcularPlano, garantiaExigida, montante } from '@/lib/simulador';
@@ -51,7 +52,13 @@ export function Simulador() {
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
-          <Button variant="outline" onClick={() => window.print()} disabled={!plano}><Printer className="h-4 w-4" /> Imprimir</Button>
+          <Button
+            variant="outline"
+            disabled={!plano}
+            onClick={() => gerarPlanoPDF({ emprestimo: { codigo: '', capital: C, taxa_juro: r, tipo_juro: tipo, data_desembolso: data }, prazoDias, nPrestacoes: nPrest, comissaoPct: com })}
+          >
+            <FileDown className="h-4 w-4" /> Simulação PDF
+          </Button>
           <Button onClick={criarCredito} disabled={!plano}>Criar crédito <ArrowRight className="h-4 w-4" /></Button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FileSignature } from 'lucide-react';
+import { FileSignature, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, Label } from '@/components/ui/primitives';
@@ -7,7 +7,7 @@ import { ContratoForm, contratoDoCliente } from '@/components/contratos/Contrato
 import { useContrato, useGuardarContrato } from '@/hooks/useContratos';
 import { useCliente } from '@/hooks/useClientes';
 import { mensagemErro } from '@/hooks/usePagamentos';
-import { contratoVazio, gerarContratoPDF, sugerirGarantia, type DadosContrato } from '@/lib/contrato';
+import { contratoVazio, gerarContratoPDF, gerarPlanoPDF, sugerirGarantia, type DadosContrato } from '@/lib/contrato';
 import type { Emprestimo } from '@/types/database.types';
 
 /** Botão + janela para emitir (ou reemitir) o contrato de um empréstimo já existente. */
@@ -60,8 +60,29 @@ export function BotaoContrato({ emprestimo }: { emprestimo: Emprestimo }) {
     }
   }
 
+  async function plano() {
+    const cr = contrato?.dados.credito;
+    await gerarPlanoPDF({
+      emprestimo: {
+        codigo: emprestimo.codigo,
+        capital: Number(emprestimo.capital),
+        taxa_juro: Number(emprestimo.taxa_juro),
+        tipo_juro: emprestimo.tipo_juro ?? 'mensal',
+        data_desembolso: emprestimo.data_desembolso,
+      },
+      prazoDias: cr?.prazo_dias ?? 30,
+      nPrestacoes: cr?.n_prestacoes ?? 1,
+      comissaoPct: cr?.comissao_pct ?? 0,
+      cliente: cliente?.nome_completo ?? '—',
+      numeroContrato: contrato?.numero,
+    });
+  }
+
   return (
     <>
+      <Button variant="outline" size="sm" onClick={plano} disabled={isLoading} title={contrato ? undefined : 'Sem contrato: usa 30 dias / 1 prestação'}>
+        <CalendarClock className="h-4 w-4" /> Plano de pagamento
+      </Button>
       <Button variant="outline" size="sm" onClick={abrir} disabled={isLoading}>
         <FileSignature className="h-4 w-4" />
         {contrato ? `Contrato ${contrato.numero}` : 'Emitir contrato'}

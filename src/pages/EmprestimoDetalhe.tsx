@@ -97,7 +97,7 @@ export function EmprestimoDetalhe() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <Badge tone={emprestimo.estado}>{emprestimo.estado}</Badge>
-            <BotaoContrato emprestimo={emprestimo} />
+            <div className="flex flex-wrap justify-end gap-2"><BotaoContrato emprestimo={emprestimo} /></div>
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

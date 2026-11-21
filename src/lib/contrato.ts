@@ -434,28 +434,10 @@ export async function gerarContratoPDF(opts: {
   P('16.3 O contrato é feito em 2 (dois) exemplares de igual valor, um para cada parte.');
 
   // --- Anexo I ---
-  W.espaco(50);
+  W.espaco(60);
   W.y += 3;
   W.texto('ANEXO I — PLANO DE PAGAMENTO', { bold: true, size: 10.5, cor: BRASS });
-  autoTable(doc, {
-    startY: W.y,
-    head: [['Prestação', 'Data de vencimento', 'Capital', 'Juros', 'Valor da prestação', 'Saldo após pagamento']],
-    body: plano.prestacoes.map((p) => [`${p.n}.ª`, dt(p.data), nf(p.capital), nf(p.juros), nf(p.valor), nf(p.saldo)]),
-    foot: [['TOTAL', '', nf(e.capital), nf(plano.totalJuros), nf(plano.total), '']],
-    theme: 'grid',
-    styles: { fontSize: 8.6, cellPadding: 1.6, textColor: INK, lineColor: [200, 192, 175], lineWidth: 0.2 },
-    headStyles: { fillColor: INK, textColor: [217, 164, 65], halign: 'center' },
-    footStyles: { fillColor: PARCH, textColor: INK, fontStyle: 'bold' },
-    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
-    margin: { left: W.mx, right: W.mx, bottom: 20 },
-    didParseCell: (d) => { if (d.section === 'foot' && d.column.index >= 2) d.cell.styles.halign = 'right'; },
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  W.y = (doc as any).lastAutoTable.finalY + 2;
-  W.texto(
-    `Valores calculados à taxa de ${pct(taxa)} ao mês, juros compostos (${e.tipo_juro === 'mensal' ? 'capitalização mensal no desembolso e a cada aniversário' : 'contagem diária, Cláusula 4.5'}). Pagamento antecipado reduz os juros (Cláusula 6.ª).`,
-    { size: 7.5, cor: GREY, gap: 4 },
-  );
+  desenharPlano(doc, autoTable, W, { emprestimo: e, plano, prazoDias: c.prazo_dias, comissaoPct: c.comissao_pct ?? 0 });
 
   // --- Assinaturas ---
   W.espaco(95);
@@ -580,4 +562,199 @@ export async function gerarContratoPDF(opts: {
   }
 
   doc.save(`Contrato_${nomeFicheiro(numero)}_${nomeFicheiro(m.nome)}.pdf`);
+}
+
+
+// ======================================================================
+// Plano de pagamento — usado no Anexo I e como documento independente
+// ======================================================================
+type AutoTable = typeof import('jspdf-autotable').default;
+
+function desenharPlano(
+  doc: JsPDF,
+  autoTable: AutoTable,
+  W: Escritor,
+  o: { emprestimo: EmprestimoContrato; plano: Plano; prazoDias: number; comissaoPct: number },
+) {
+  const { emprestimo: e, plano } = o;
+  const n = plano.prestacoes.length;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fim = () => (doc as any).lastAutoTable.finalY as number;
+
+  // 1) Resumo em quadros
+  const resumo: [string, string][] = [
+    ['Capital', mt(e.capital)],
+    ['Taxa de juro', `${pct(e.taxa_juro)} ao mês`],
+    ['Prazo', `${o.prazoDias} dias`],
+    ['N.º de prestações', `${n}`],
+    ['Total a reembolsar', mt(plano.total)],
+    ['Data limite', dt(plano.dataLimite)],
+  ];
+  W.espaco(26);
+  const bw = (W.largura - 5 * 2) / 3;
+  resumo.forEach(([k, v], i) => {
+    const x = W.mx + (i % 3) * (bw + 2);
+    const y = W.y + Math.floor(i / 3) * 13;
+    doc.setFillColor(...PARCH);
+    doc.roundedRect(x, y, bw, 11, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(...GREY);
+    doc.text(k.toUpperCase(), x + 3, y + 4);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...(i === 4 ? BRASS : INK));
+    doc.text(v, x + 3, y + 9);
+  });
+  W.y += 28;
+
+  // 2) Prestações
+  autoTable(doc, {
+    startY: W.y,
+    head: [['Prestação', 'Data de vencimento', 'Dias', 'Capital', 'Juros', 'Valor da prestação', 'Saldo após pagamento']],
+    body: plano.prestacoes.map((p) => [`${p.n}.ª`, dt(p.data), String(p.dias), nf(p.capital), nf(p.juros), nf(p.valor), nf(p.saldo)]),
+    foot: [['TOTAL', '', '', nf(e.capital), nf(plano.totalJuros), nf(plano.total), '']],
+    theme: 'grid',
+    styles: { fontSize: 8.6, cellPadding: 1.8, textColor: INK, lineColor: [200, 192, 175], lineWidth: 0.2 },
+    headStyles: { fillColor: INK, textColor: [217, 164, 65], halign: 'center' },
+    footStyles: { fillColor: PARCH, textColor: INK, fontStyle: 'bold' },
+    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' }, 6: { halign: 'right' } },
+    margin: { left: W.mx, right: W.mx, bottom: 20 },
+    didParseCell: (d) => { if (d.section === 'foot' && d.column.index >= 3) d.cell.styles.halign = 'right'; },
+  });
+  W.y = fim() + 5;
+  W.texto(
+    `Juros compostos à taxa de ${pct(e.taxa_juro)} ao mês (${e.tipo_juro === 'mensal' ? 'capitalização mensal no desembolso e a cada aniversário' : 'contagem diária, Cláusula 4.5'}). ` +
+      'Datas ajustadas para o dia útil anterior quando calham ao fim-de-semana (Cláusula 3.3).' +
+      (o.comissaoPct > 0 ? ` Comissão de abertura de ${o.comissaoPct}% (${mt((e.capital * o.comissaoPct) / 100)}) paga no desembolso.` : ''),
+    { size: 7.3, cor: GREY, gap: 4 },
+  );
+
+  // 3) Liquidação antecipada (Cláusula 6.ª)
+  const linhasAnt: string[][] = [];
+  const marcos = [7, 15].filter((d) => d < plano.prestacoes[0].dias);
+  for (const d of marcos) {
+    const data = addDiasISO(e.data_desembolso, d);
+    linhasAnt.push([dt(data), `${d} dias`, mt(e.capital * fator(e.taxa_juro, d, e.tipo_juro))]);
+  }
+  let saldoAntes = e.capital;
+  let tAnt = 0;
+  for (const p of plano.prestacoes) {
+    const base = tAnt === 0 ? 1 : fator(e.taxa_juro, tAnt, e.tipo_juro);
+    const devido = saldoAntes * (fator(e.taxa_juro, p.dias, e.tipo_juro) / base);
+    linhasAnt.push([dt(p.data), `${p.dias} dias${p.n > 1 ? ` (após a ${p.n - 1}.ª prestação)` : ''}`, mt(devido)]);
+    saldoAntes = p.saldo;
+    tAnt = p.dias;
+  }
+  W.espaco(30);
+  W.texto('Se quiser liquidar tudo antecipadamente (Cláusula 6.ª), o valor a pagar é:', { bold: true, size: 8.8 });
+  autoTable(doc, {
+    startY: W.y,
+    head: [['Data', 'Tempo decorrido', 'Valor para liquidar tudo']],
+    body: linhasAnt,
+    theme: 'grid',
+    styles: { fontSize: 8.4, cellPadding: 1.5, textColor: INK, lineColor: [200, 192, 175], lineWidth: 0.2 },
+    headStyles: { fillColor: [67, 114, 86], textColor: [255, 255, 255] },
+    columnStyles: { 0: { halign: 'center', cellWidth: 35 }, 2: { halign: 'right', fontStyle: 'bold' } },
+    margin: { left: W.mx, right: W.mx, bottom: 20 },
+  });
+  W.y = fim() + 4;
+
+  // 4) Onde pagar
+  W.espaco(22);
+  W.texto('Onde pagar (enviar o comprovativo no próprio dia):', { bold: true, size: 8.8 });
+  for (const l of [
+    'M-Pesa 848 222 933  ·  M-Vodafone/Movitel 872 222 933  (Júlio Lázaro Mucavel)',
+    'Standard Bank — LUMEO CAPITAL MICROCREDITO EI — Conta 1250023162587 — NIB 000301250002316258781',
+  ])
+    W.texto(l, { size: 8.3, indent: 3, gap: 0.6 });
+  W.y += 2;
+}
+
+const fator = (taxa: number, dias: number, tipo: TipoJuro) =>
+  dias <= 0 ? 1 : tipo === 'mensal' ? Math.pow(1 + taxa, Math.max(1, Math.ceil(dias / 30))) : Math.pow(1 + taxa, dias / 30);
+const addDiasISO = (iso: string, d: number) => {
+  const [y, m, dd] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, dd + d)).toISOString().slice(0, 10);
+};
+
+/** Plano de Pagamento em PDF (1 página) — para entregar ao cliente.
+ * Sem cliente/número = proposta do simulador. */
+export async function gerarPlanoPDF(opts: {
+  emprestimo: EmprestimoContrato;
+  prazoDias: number;
+  nPrestacoes: number;
+  comissaoPct?: number;
+  cliente?: string;
+  numeroContrato?: string;
+}) {
+  const [{ jsPDF }, { default: autoTable }, assinatura, carimbo] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+    carregarImagem('/docs/assinatura.png'),
+    carregarImagem('/docs/carimbo.png'),
+  ]);
+  const e = opts.emprestimo;
+  const plano = calcularPlano({ capital: e.capital, taxa: e.taxa_juro, tipo: e.tipo_juro, dataDesembolso: e.data_desembolso, prazoDias: opts.prazoDias, nPrestacoes: opts.nPrestacoes });
+  const proposta = !opts.cliente;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const W = new Escritor(doc);
+
+  doc.setFillColor(...INK);
+  doc.rect(0, 0, W.w, 26, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.text('LUMEO CAPITAL', W.mx, 12);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...PARCH);
+  doc.text('Instituição de Microcrédito · Alvará n.º 1077/11/01/PS/2026 · NUIT 125624502', W.mx, 17.5);
+  doc.text('Rua de Malhangalene B, n.º 2081, Maputo · Tel. 872 222 933', W.mx, 21.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(217, 164, 65);
+  doc.text(proposta ? 'SIMULAÇÃO DE CRÉDITO' : 'PLANO DE PAGAMENTO', W.w - W.mx, 12, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text(
+    proposta ? `Emitida em ${dt(new Date().toISOString())} · válida por 7 dias` : `${opts.numeroContrato ? `Contrato ${opts.numeroContrato} · ` : ''}Empréstimo ${e.codigo}`,
+    W.w - W.mx, 18, { align: 'right' },
+  );
+  W.y = 36;
+
+  if (!proposta) {
+    W.texto(`Cliente: ${opts.cliente}`, { bold: true, size: 10.5, gap: 1 });
+    W.texto(`Data de desembolso: ${dt(e.data_desembolso)}`, { size: 9, cor: GREY, gap: 4 });
+  } else {
+    W.texto(`Proposta para desembolso em ${dt(e.data_desembolso)}. Valores indicativos — o crédito só é concedido após análise e assinatura do contrato.`, { size: 8.8, cor: GREY, gap: 4 });
+  }
+
+  desenharPlano(doc, autoTable, W, { emprestimo: e, plano, prazoDias: opts.prazoDias, comissaoPct: opts.comissaoPct ?? 0 });
+
+  if (!proposta) {
+    W.espaco(45);
+    const y = W.y + 22;
+    if (carimbo) doc.addImage(carimbo.data, 'PNG', W.mx + 22, y - 22, 30, 30);
+    if (assinatura) {
+      const aw = 28;
+      doc.addImage(assinatura.data, 'PNG', W.mx + 8, y - (aw * assinatura.h) / assinatura.w + 3, aw, (aw * assinatura.h) / assinatura.w);
+    }
+    doc.setDrawColor(...INK);
+    doc.setLineWidth(0.3);
+    doc.line(W.mx, y, W.mx + 65, y);
+    doc.line(W.w - W.mx - 65, y, W.w - W.mx, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.8);
+    doc.setTextColor(...INK);
+    doc.text('LUMEO Capital — Júlio Lázaro Mucavel, Director Geral', W.mx + 32.5, y + 4, { align: 'center' });
+    doc.text(`Tomei conhecimento: ${opts.cliente}`, W.w - W.mx - 32.5, y + 4, { align: 'center' });
+  }
+
+  doc.setFontSize(7);
+  doc.setTextColor(...GREY);
+  doc.text(`Documento emitido pelo sistema de gestão da LUMEO Capital em ${dt(new Date().toISOString())}.`, W.mx, W.h - 8);
+  const nome = proposta ? `Simulacao_${Math.round(e.capital)}MT` : `Plano_Pagamento_${e.codigo}_${opts.cliente}`;
+  doc.save(`${nomeFicheiro(nome)}.pdf`);
 }
